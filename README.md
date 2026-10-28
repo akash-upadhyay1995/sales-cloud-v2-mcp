@@ -36,16 +36,21 @@ SALES_CLOUD_API_KEY=your-api-key-here
 npm run setup
 ```
 
-This registers the MCP server with Claude Code and confirms it is **Connected**. You should see:
+This registers the MCP server at **user scope** in Claude Code and verifies it appears in `claude mcp list`.  
+If `dist/` is missing it builds automatically. It exits with a non-zero code and clear instructions if anything goes wrong.
+
+Expected output:
 
 ```
 ✓  Build found: dist/index.js
 ✓  .env present
 ✓  Registered
-✓  sales-cloud-v2: node /absolute/path/dist/index.js - ✔ Connected
+✓  sales-cloud-v2: node /absolute/path/dist/index.js
 ```
 
-**That's it.** The server is now live. Use `sc_ping` in Claude to verify the Sales Cloud connection.
+**Note:** The status line may not yet show `Connected` until you restart Claude Code — that is normal. Restart Claude Code, then run `sc_ping` to confirm the Sales Cloud connection.
+
+> **Project-scope auto-discovery** — the committed `.mcp.json` also registers the server for anyone who opens this folder in Claude Code. On first open Claude Code will prompt for approval; accepting it is equivalent to running `npm run setup`.
 
 ---
 
@@ -56,8 +61,10 @@ claude mcp list
 ```
 
 ```
-sales-cloud-v2: node .../dist/index.js - ✔ Connected
+sales-cloud-v2: node .../dist/index.js
 ```
+
+The entry appearing in the list means the server is registered. If it shows as disconnected, restart Claude Code — the MCP process starts when Claude Code launches.
 
 ---
 

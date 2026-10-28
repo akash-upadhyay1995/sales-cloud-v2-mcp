@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * setup.js — run once after cloning the repo.
- * Registers the MCP server with Claude Code so it shows up as Connected.
+ * Registers the MCP server with Claude Code (user scope) so it shows up as Connected.
  *
  * Usage:  npm run setup
  */
@@ -26,16 +26,30 @@ function run(cmd, opts = {}) {
     .trim();
 }
 
+function fail(msg) {
+  console.error(`\n✗  ${msg}\n`);
+  process.exit(1);
+}
+
 console.log(`\n${HR}`);
 console.log("  SAP Sales Cloud V2 MCP Server — Setup");
 console.log(`${HR}\n`);
 
-// ── 1. Verify build ──────────────────────────────────────────────────────────
+// ── 1. Verify / build ────────────────────────────────────────────────────────
 if (!existsSync(serverPath)) {
-  console.error("✗  dist/index.js not found.");
-  console.error("   npm install should have built it automatically.");
-  console.error("   If not, run:  npm run build\n");
-  process.exit(1);
+  console.log("   dist/index.js not found — running npm run build...");
+  try {
+    execSync("npm run build", { stdio: "inherit", cwd: root });
+  } catch {
+    fail(
+      "Build failed. Fix TypeScript errors above, then re-run `npm run setup`."
+    );
+  }
+  if (!existsSync(serverPath)) {
+    fail(
+      "Build ran but dist/index.js still missing. Check tsconfig.json outDir."
+    );
+  }
 }
 console.log("✓  Build found: dist/index.js");
 
@@ -70,48 +84,63 @@ if (!claudeAvailable) {
   process.exit(0);
 }
 
-// ── 4. Register the MCP server ───────────────────────────────────────────────
-console.log("\nRegistering MCP server with Claude Code...");
+// ── 4. Register the MCP server (user scope) ──────────────────────────────────
+// -s user avoids the project-path key that local scope uses, which can cause
+// the entry to be invisible when claude is launched from a different CWD.
+console.log("\nRegistering MCP server with Claude Code (user scope)...");
+
+const addCmd = `claude mcp add -s user sales-cloud-v2 node "${serverPathFwd}"`;
+
 try {
-  const out = run(`claude mcp add sales-cloud-v2 node "${serverPathFwd}"`);
-  console.log("✓ " + (out || "Registered"));
+  const out = run(addCmd);
+  console.log("✓  " + (out || "Registered"));
 } catch (err) {
-  const msg = err.message ?? String(err);
+  const msg = (err.stderr ?? err.message ?? String(err)).toString();
   if (msg.includes("already") || msg.includes("exists")) {
-    console.log("✓  Already registered — updating...");
+    console.log("   Already registered — re-adding to refresh path...");
     try {
-      run(`claude mcp remove sales-cloud-v2`);
-      run(`claude mcp add sales-cloud-v2 node "${serverPathFwd}"`);
-      console.log("✓  Updated");
+      run("claude mcp remove -s user sales-cloud-v2");
     } catch {
-      console.log("   Could not update. Server may already be current.");
+      /* ignore if not present */
+    }
+    try {
+      run(addCmd);
+      console.log("✓  Updated");
+    } catch (e2) {
+      fail(`Re-registration failed: ${e2.message ?? String(e2)}\n   Try manually: ${addCmd}`);
     }
   } else {
-    console.error("✗  Registration failed:", msg);
-    console.error(`   Try manually: claude mcp add sales-cloud-v2 node "${serverPathFwd}"`);
+    fail(`Registration failed: ${msg}\n   Try manually: ${addCmd}`);
   }
 }
 
-// ── 5. Verify connection ─────────────────────────────────────────────────────
-console.log("\nVerifying connection...");
+// ── 5. Verify it's in the list ───────────────────────────────────────────────
+console.log("\nVerifying registration...");
+let list = "";
 try {
-  const list = run("claude mcp list");
-  const lines = list.split("\n");
-  const serverLine = lines.find((l) => l.includes("sales-cloud-v2"));
-  if (serverLine) {
-    const connected = serverLine.includes("Connected");
-    const icon = connected ? "✓" : "⚠";
-    console.log(`${icon}  ${serverLine.trim()}`);
-    if (!connected) {
-      console.log("\n   Server registered but not yet connected.");
-      console.log("   Check that SALES_CLOUD_BASE_URL and SALES_CLOUD_API_KEY are");
-      console.log("   set correctly in .env, then restart Claude Code.\n");
-    }
-  } else {
-    console.log("   Run `claude mcp list` to check status.");
-  }
-} catch {
-  console.log("   Run `claude mcp list` to check status.");
+  list = run("claude mcp list");
+} catch (err) {
+  fail(`Could not run \`claude mcp list\`: ${err.message ?? String(err)}`);
+}
+
+const serverLine = list.split("\n").find((l) => l.includes("sales-cloud-v2"));
+
+if (!serverLine) {
+  console.error("✗  sales-cloud-v2 is NOT in `claude mcp list` after registration.");
+  console.error("   Full output of `claude mcp list`:");
+  console.error(list || "  (empty)");
+  console.error(`\n   Try manually: ${addCmd}\n`);
+  process.exit(1);
+}
+
+const connected = serverLine.toLowerCase().includes("connected");
+const icon = connected ? "✓" : "⚠";
+console.log(`${icon}  ${serverLine.trim()}`);
+
+if (!connected) {
+  console.log("\n   Server registered but not yet showing as Connected.");
+  console.log("   This is normal on first run — restart Claude Code and");
+  console.log("   run sc_ping to confirm the Sales Cloud connection.\n");
 }
 
 console.log(`\n${HR}`);
