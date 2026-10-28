@@ -9,6 +9,36 @@ export interface TokenCache {
 // Module-level cache shared across requests within the same process lifetime
 let _tokenCache: TokenCache | null = null;
 
+/** Returns the API-key auth header. */
+export function apiKeyHeaders(config: Config): Record<string, string> {
+  return { [config.salesCloudApiKeyHeader]: config.salesCloudApiKey! };
+}
+
+/** Returns the HTTP Basic Auth header (base64-encoded user:pass). */
+export function basicAuthHeaders(config: Config): Record<string, string> {
+  const encoded = Buffer.from(
+    `${config.salesCloudUsername}:${config.salesCloudPassword}`
+  ).toString("base64");
+  return { Authorization: `Basic ${encoded}` };
+}
+
+/** Auto-detect which auth method to use based on what is configured. Priority: OAuth2 > Basic > API key. */
+export function resolveAuthHeaders(config: Config): Promise<Record<string, string>> | Record<string, string> {
+  if (isOAuthConfigured(config)) return getOAuthToken(config).then((t) => ({ Authorization: `Bearer ${t}` }));
+  if (isBasicConfigured(config)) return basicAuthHeaders(config);
+  return apiKeyHeaders(config);
+}
+
+/** True when all required BTP OAuth2 values are present. */
+export function isOAuthConfigured(config: Config): boolean {
+  return !!(config.btpClientId && config.btpClientSecret && config.btpTokenUrl);
+}
+
+/** True when both username and password are present. */
+export function isBasicConfigured(config: Config): boolean {
+  return !!(config.salesCloudUsername && config.salesCloudPassword);
+}
+
 /**
  * Fetches (or returns a cached) OAuth2 access token using client_credentials flow.
  * Used when deploying the MCP server to SAP BTP.
@@ -45,19 +75,4 @@ export async function getOAuthToken(config: Config): Promise<string> {
   };
 
   return _tokenCache.token;
-}
-
-/** Returns the API-key auth header object. */
-export function apiKeyHeaders(config: Config): Record<string, string> {
-  return { [config.salesCloudApiKeyHeader]: config.salesCloudApiKey };
-}
-
-/** True when all four BTP OAuth2 values are present. */
-export function isOAuthConfigured(config: Config): boolean {
-  return !!(
-    config.btpAppUrl &&
-    config.btpClientId &&
-    config.btpClientSecret &&
-    config.btpTokenUrl
-  );
 }

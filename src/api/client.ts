@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, AxiosError } from "axios";
 import type { Config } from "../config.js";
-import { apiKeyHeaders, getOAuthToken, isOAuthConfigured } from "./auth.js";
+import { resolveAuthHeaders } from "./auth.js";
 import type { ODataListResponse, QueryParams } from "./types.js";
 
 // OData v2 JSON response envelopes returned by SAP C4C
@@ -72,9 +72,7 @@ export class SalesCloudClient {
     });
 
     this.http.interceptors.request.use(async (axiosConfig) => {
-      const authHeaders = isOAuthConfigured(config)
-        ? { Authorization: `Bearer ${await getOAuthToken(config)}` }
-        : apiKeyHeaders(config);
+      const authHeaders = await resolveAuthHeaders(config);
       axiosConfig.headers = Object.assign(axiosConfig.headers ?? {}, authHeaders);
       return axiosConfig;
     });
