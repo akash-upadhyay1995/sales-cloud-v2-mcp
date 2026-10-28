@@ -1,0 +1,57 @@
+{
+  "name": "sales-cloud-v2-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server for SAP Sales Cloud V2 — Accounts, Opportunities, Leads, Contacts, Activities, and raw OData queries",
+  "transport": "stdio",
+  "runtime": {
+    "command": "node",
+    "args": ["dist/index.js"]
+  },
+  "credentials": {
+    "_comment": "All credentials live ONLY in .env at the project root. Copy .env.example → .env and fill in the two required values. Never put credentials in any MCP config file.",
+    "required": [
+      {
+        "env_var": "SALES_CLOUD_BASE_URL",
+        "description": "Base URL of your SAP Sales Cloud V2 tenant (e.g. https://sandbox.api.sap.com or your real tenant https://my123456.crm.cloud.sap)",
+        "set_in": ".env"
+      },
+      {
+        "env_var": "SALES_CLOUD_API_KEY",
+        "description": "API key — obtain from Settings > API Keys in your tenant",
+        "set_in": ".env",
+        "secret": true
+      }
+    ],
+    "optional": [
+      { "env_var": "SALES_CLOUD_API_KEY_HEADER", "default": "APIKey" },
+      { "env_var": "ODATA_BASE_PATH", "default": "/sap/c4c/odata/v1/c4codataapi" },
+      { "env_var": "REQUEST_TIMEOUT_MS", "default": "30000" },
+      { "env_var": "MAX_RETRIES", "default": "3" }
+    ]
+  },
+  "tools": [
+    "sc_ping",
+    "sc_list_accounts", "sc_get_account", "sc_create_account", "sc_update_account",
+    "sc_list_opportunities", "sc_get_opportunity", "sc_create_opportunity", "sc_update_opportunity",
+    "sc_list_leads", "sc_get_lead", "sc_create_lead", "sc_update_lead",
+    "sc_list_contacts", "sc_get_contact", "sc_create_contact", "sc_update_contact",
+    "sc_list_activities", "sc_get_activity", "sc_create_activity", "sc_update_activity",
+    "sc_odata_query", "sc_get_entity"
+  ],
+  "onboarding": {
+    "steps": [
+      "1. Clone this repo and run: npm install && npm run build",
+      "2. Copy .env.example to .env",
+      "3. Fill in SALES_CLOUD_BASE_URL and SALES_CLOUD_API_KEY in .env — that is the only place credentials go",
+      "4a. Claude Code: .mcp.json is already committed — the server registers automatically when you open this project",
+      "4b. Claude Desktop: add the snippet from claude_desktop_snippet below to your claude_desktop_config.json (no credentials needed there)"
+    ]
+  },
+  "claude_desktop_snippet": {
+    "_comment": "Add under mcpServers in %APPDATA%\\Claude\\claude_desktop_config.json (Windows) or ~/Library/Application Support/Claude/claude_desktop_config.json (macOS). Adjust the path. Credentials come from .env — do NOT add them here.",
+    "sales-cloud-v2": {
+      "command": "node",
+      "args": ["C:/path/to/sales-cloud-v2-mcp/dist/index.js"]
+    }
+  }
+}

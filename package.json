@@ -1,0 +1,48 @@
+{
+  "name": "sales-cloud-v2-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server for SAP Sales Cloud V2 API integration",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "sales-cloud-v2-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist",
+    "setup": "node scripts/setup.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "mcp.json",
+    "manifest.yml",
+    ".env.example"
+  ],
+  "keywords": [
+    "mcp",
+    "sap",
+    "sales-cloud",
+    "crm",
+    "claude"
+  ]
+}

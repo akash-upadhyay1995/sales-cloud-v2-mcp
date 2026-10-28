@@ -1,0 +1,32 @@
+---
+# Cloud Foundry manifest for SAP BTP deployment
+# Deploy with: cf push
+# Set secrets via: cf set-env sales-cloud-v2-mcp SALES_CLOUD_API_KEY <value>
+
+applications:
+  - name: sales-cloud-v2-mcp
+    memory: 256M
+    disk_quota: 512M
+    instances: 1
+    buildpacks:
+      - nodejs_buildpack
+    command: node dist/index.js
+    # MCP uses stdio transport — the CF process health check should be process-based
+    health-check-type: process
+    env:
+      NODE_ENV: production
+      # ── Required — set these via cf set-env, never hardcode here ──
+      # SALES_CLOUD_BASE_URL: https://my123456.crm.cloud.sap
+      # SALES_CLOUD_API_KEY:  <obtain from Settings > API Keys in your tenant>
+      #
+      # ── Optional ──
+      # SALES_CLOUD_API_KEY_HEADER: APIKey
+      # ODATA_BASE_PATH: /sap/c4c/odata/v1/c4codataapi
+      # REQUEST_TIMEOUT_MS: "30000"
+      # MAX_RETRIES: "3"
+      #
+      # ── BTP OAuth2 (enables client_credentials flow instead of API key) ──
+      # BTP_APP_URL:      https://sales-cloud-v2-mcp.cfapps.eu10.hana.ondemand.com
+      # BTP_CLIENT_ID:    sb-sales-cloud-mcp!t12345
+      # BTP_CLIENT_SECRET: <from xsuaa service binding>
+      # BTP_TOKEN_URL:    https://your-subaccount.authentication.eu10.hana.ondemand.com/oauth/token
