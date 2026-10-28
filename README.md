@@ -30,27 +30,33 @@ SALES_CLOUD_API_KEY=your-api-key-here
 > **.env is the only place credentials go.** It is gitignored and stays on your machine.  
 > No other config file should ever contain your URL or API key.
 
-### Step 3 — Register with Claude Code
+### Step 3 — Approve the server in Claude Code, then verify
+
+The committed `.mcp.json` registers the server automatically at project scope.  
+**You do not need to run any registration command.**
+
+1. Open Claude Code in this repo folder (or restart it if already open).
+2. On startup Claude Code will show an approval prompt for `sales-cloud-v2` — accept it.  
+   If you miss the prompt, run `/mcp` inside Claude Code and enable `sales-cloud-v2`.
+3. Run the setup script to confirm everything is in order:
 
 ```bash
 npm run setup
 ```
-
-This registers the MCP server at **user scope** in Claude Code and verifies it appears in `claude mcp list`.  
-If `dist/` is missing it builds automatically. It exits with a non-zero code and clear instructions if anything goes wrong.
 
 Expected output:
 
 ```
 ✓  Build found: dist/index.js
 ✓  .env present
-✓  Registered
-✓  sales-cloud-v2: node /absolute/path/dist/index.js
+✓  .mcp.json defines sales-cloud-v2 (project scope)
+✓  sales-cloud-v2: node dist/index.js
 ```
 
-**Note:** The status line may not yet show `Connected` until you restart Claude Code — that is normal. Restart Claude Code, then run `sc_ping` to confirm the Sales Cloud connection.
+If `dist/` is missing the script builds it automatically.  
+If the server isn't visible yet (approval still pending), the script prints instructions instead of failing.
 
-> **Project-scope auto-discovery** — the committed `.mcp.json` also registers the server for anyone who opens this folder in Claude Code. On first open Claude Code will prompt for approval; accepting it is equivalent to running `npm run setup`.
+**That's it.** Run `sc_ping` in Claude to confirm the Sales Cloud connection.
 
 ---
 

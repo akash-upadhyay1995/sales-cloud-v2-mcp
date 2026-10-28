@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 /**
  * setup.js — run once after cloning the repo.
- * Registers the MCP server with Claude Code (user scope) so it shows up as Connected.
+ * Verifies the build and .env, then confirms Claude Code can see the server.
+ *
+ * Registration is handled by .mcp.json (project scope) — this script does NOT
+ * add a duplicate user-scope entry.  If Claude Code hasn't approved .mcp.json
+ * yet, the script prints a reminder to do so interactively.
  *
  * Usage:  npm run setup
  */
 import { execSync } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -14,9 +18,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const root = resolve(__dirname, "..");
 const serverPath = resolve(root, "dist", "index.js");
-// Forward slashes work on all platforms including Windows
 const serverPathFwd = serverPath.replace(/\\/g, "/");
 const envPath = resolve(root, ".env");
+const mcpJsonPath = resolve(root, ".mcp.json");
 
 const HR = "─".repeat(60);
 
@@ -41,14 +45,10 @@ if (!existsSync(serverPath)) {
   try {
     execSync("npm run build", { stdio: "inherit", cwd: root });
   } catch {
-    fail(
-      "Build failed. Fix TypeScript errors above, then re-run `npm run setup`."
-    );
+    fail("Build failed. Fix TypeScript errors above, then re-run `npm run setup`.");
   }
   if (!existsSync(serverPath)) {
-    fail(
-      "Build ran but dist/index.js still missing. Check tsconfig.json outDir."
-    );
+    fail("Build ran but dist/index.js still missing. Check tsconfig.json outDir.");
   }
 }
 console.log("✓  Build found: dist/index.js");
@@ -84,38 +84,39 @@ if (!claudeAvailable) {
   process.exit(0);
 }
 
-// ── 4. Register the MCP server (user scope) ──────────────────────────────────
-// -s user avoids the project-path key that local scope uses, which can cause
-// the entry to be invisible when claude is launched from a different CWD.
-console.log("\nRegistering MCP server with Claude Code (user scope)...");
-
-const addCmd = `claude mcp add -s user sales-cloud-v2 node "${serverPathFwd}"`;
-
+// ── 4. .mcp.json check ──────────────────────────────────────────────────────
+// Registration lives in .mcp.json (project scope).  We never add a user-scope
+// duplicate — that would produce the "defined in multiple scopes" conflict.
+let mcpJsonDefinesServer = false;
 try {
-  const out = run(addCmd);
-  console.log("✓  " + (out || "Registered"));
-} catch (err) {
-  const msg = (err.stderr ?? err.message ?? String(err)).toString();
-  if (msg.includes("already") || msg.includes("exists")) {
-    console.log("   Already registered — re-adding to refresh path...");
-    try {
-      run("claude mcp remove -s user sales-cloud-v2");
-    } catch {
-      /* ignore if not present */
+  const mcpJson = JSON.parse(readFileSync(mcpJsonPath, "utf8"));
+  mcpJsonDefinesServer = !!(mcpJson?.mcpServers?.["sales-cloud-v2"]);
+} catch {
+  /* .mcp.json absent or unparseable — fall through */
+}
+
+if (mcpJsonDefinesServer) {
+  console.log("✓  .mcp.json defines sales-cloud-v2 (project scope)");
+} else {
+  // .mcp.json missing or empty — fall back to user-scope registration
+  console.log("\n   .mcp.json does not define sales-cloud-v2.");
+  console.log("   Registering at user scope as fallback...");
+  const addCmd = `claude mcp add -s user sales-cloud-v2 node "${serverPathFwd}"`;
+  try {
+    const out = run(addCmd);
+    console.log("✓  " + (out || "Registered (user scope)"));
+  } catch (err) {
+    const msg = (err.stderr ?? err.message ?? String(err)).toString();
+    if (msg.includes("already") || msg.includes("exists")) {
+      console.log("   Already registered — skipping.");
+    } else {
+      fail(`Registration failed: ${msg}\n   Try manually: ${addCmd}`);
     }
-    try {
-      run(addCmd);
-      console.log("✓  Updated");
-    } catch (e2) {
-      fail(`Re-registration failed: ${e2.message ?? String(e2)}\n   Try manually: ${addCmd}`);
-    }
-  } else {
-    fail(`Registration failed: ${msg}\n   Try manually: ${addCmd}`);
   }
 }
 
-// ── 5. Verify it's in the list ───────────────────────────────────────────────
-console.log("\nVerifying registration...");
+// ── 5. Check claude mcp list ─────────────────────────────────────────────────
+console.log("\nChecking `claude mcp list`...");
 let list = "";
 try {
   list = run("claude mcp list");
@@ -126,11 +127,20 @@ try {
 const serverLine = list.split("\n").find((l) => l.includes("sales-cloud-v2"));
 
 if (!serverLine) {
-  console.error("✗  sales-cloud-v2 is NOT in `claude mcp list` after registration.");
-  console.error("   Full output of `claude mcp list`:");
-  console.error(list || "  (empty)");
-  console.error(`\n   Try manually: ${addCmd}\n`);
-  process.exit(1);
+  if (mcpJsonDefinesServer) {
+    console.log("⚠  sales-cloud-v2 is not yet visible in `claude mcp list`.");
+    console.log("   Project-scope servers require one-time approval in Claude Code.");
+    console.log("   Open Claude Code in this folder, then:");
+    console.log("     • Run /mcp and enable sales-cloud-v2, or");
+    console.log("     • Accept the approval prompt that appears on startup.");
+    console.log("   Then restart Claude Code and run sc_ping.\n");
+    process.exit(0); // not an error — just needs interactive approval
+  } else {
+    fail(
+      "sales-cloud-v2 is NOT in `claude mcp list` after registration.\n" +
+      "   Full output:\n" + (list || "  (empty)")
+    );
+  }
 }
 
 const connected = serverLine.toLowerCase().includes("connected");
@@ -138,9 +148,8 @@ const icon = connected ? "✓" : "⚠";
 console.log(`${icon}  ${serverLine.trim()}`);
 
 if (!connected) {
-  console.log("\n   Server registered but not yet showing as Connected.");
-  console.log("   This is normal on first run — restart Claude Code and");
-  console.log("   run sc_ping to confirm the Sales Cloud connection.\n");
+  console.log("\n   Server is registered but not yet showing as Connected.");
+  console.log("   Restart Claude Code, then run sc_ping to confirm.\n");
 }
 
 console.log(`\n${HR}`);
