@@ -34,6 +34,15 @@ export async function handlePingTool(
       sample_id: result.value[0]?.ObjectID ?? null,
     });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Surface URL-config errors as a first-class message rather than a raw stack trace
+    if (
+      msg.includes("SALES_CLOUD_BASE_URL") ||
+      msg.includes("not OData") ||
+      msg.includes("HTML response")
+    ) {
+      return errorResult(msg);
+    }
     return errorResult("Connection test failed", err);
   }
 }

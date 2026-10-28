@@ -13,6 +13,16 @@ interface ODataV2SingleResponse<T> {
 
 /** Normalize an OData v2 list response into the v4-style shape used everywhere else. */
 function normalizeList<T>(raw: unknown): ODataListResponse<T> {
+  // HTML string → wrong base URL (catalog page, login redirect, etc.)
+  if (typeof raw === "string") {
+    throw new Error(
+      "Expected OData JSON but got a text/HTML response. " +
+      "SALES_CLOUD_BASE_URL in your .env is pointing at the wrong endpoint. " +
+      "Use https://sandbox.api.sap.com for the sandbox, or https://<tenant>.crm.cloud.sap for a real tenant."
+    );
+  }
+
+  // OData v2 envelope: { d: { results: [...], __count?: "N" } }
   const v2 = raw as ODataV2ListResponse<T>;
   if (v2?.d?.results !== undefined) {
     return {
@@ -20,7 +30,18 @@ function normalizeList<T>(raw: unknown): ODataListResponse<T> {
       "@odata.count": v2.d.__count !== undefined ? parseInt(v2.d.__count, 10) : undefined,
     };
   }
-  return raw as ODataListResponse<T>;
+
+  // OData v4 envelope: { value: [...] }
+  if (raw !== null && typeof raw === "object" && "value" in raw) {
+    return raw as ODataListResponse<T>;
+  }
+
+  // Neither v2 nor v4 — something is wrong with the base URL
+  const preview = JSON.stringify(raw).slice(0, 120);
+  throw new Error(
+    `Response is not OData (missing both d.results and value). ` +
+    `Check SALES_CLOUD_BASE_URL in your .env. Got: ${preview}`
+  );
 }
 
 /** Unwrap a single-entity OData v2 response. */
